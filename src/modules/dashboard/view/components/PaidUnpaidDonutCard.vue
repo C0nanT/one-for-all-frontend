@@ -7,10 +7,13 @@ const {
   loading,
   error,
   paid,
+  paidZero,
   unpaid,
   total,
   isEmpty,
   paidStrokeDasharray,
+  paidZeroStrokeDasharray,
+  paidZeroStrokeDashoffset,
   unpaidStrokeDasharray,
   unpaidStrokeDashoffset,
 } = usePaidUnpaidDonut()
@@ -54,6 +57,17 @@ const {
                 :stroke-dasharray="paidStrokeDasharray"
               />
               <circle
+                v-if="paidZero > 0"
+                cx="50"
+                cy="50"
+                r="40"
+                fill="none"
+                stroke="#737373"
+                stroke-width="12"
+                :stroke-dasharray="paidZeroStrokeDasharray"
+                :stroke-dashoffset="paidZeroStrokeDashoffset"
+              />
+              <circle
                 v-if="unpaid > 0"
                 cx="50"
                 cy="50"
@@ -87,6 +101,11 @@ const {
               />
               <span class="text-muted-foreground">Unpaid:</span>
               <span class="font-medium tabular-nums">{{ unpaid }}</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="inline-block size-3 rounded-full bg-[#737373]" />
+              <span class="text-muted-foreground">No charge:</span>
+              <span class="font-medium tabular-nums">{{ paidZero }}</span>
             </div>
           </div>
         </div>
