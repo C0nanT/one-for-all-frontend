@@ -33,7 +33,7 @@ export interface PayableAccountsListResponse {
 }
 
 export interface PayableAccountsCountsResponse {
-  data: { paid: number; unpaid: number }
+  data: { paid: number; unpaid: number; paid_zero: number }
 }
 
 export async function fetchPayableAccounts(period: string): Promise<PayableAccountsListResponse> {
