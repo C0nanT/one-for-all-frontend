@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { LogOut, Moon, Sun, LayoutDashboard, DollarSign } from "lucide-vue-next"
+import { LogOut, Moon, Sun, LayoutDashboard, DollarSign, CreditCard } from "lucide-vue-next"
 import { useRouter } from "vue-router"
 import { useAuthStore } from "@/modules/auth/model/store"
 import { useTheme } from "@/core/composables/useTheme"
@@ -31,6 +31,11 @@ const navItems = [
     title: "Accounts payable",
     to: "/accounts-payable",
     icon: DollarSign,
+  },
+  {
+    title: "Transport card",
+    to: "/transport-card",
+    icon: CreditCard,
   },
 ]
 
