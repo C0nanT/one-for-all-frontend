@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from "vue"
+import { ref, reactive, onMounted } from "vue"
 import { CreditCard, RefreshCw, Plus, Pencil, Trash2 } from "lucide-vue-next"
 import { toast } from "vue-sonner"
 import {
@@ -25,29 +25,13 @@ import {
 } from "@/shared/components/ui/dialog"
 import { Input } from "@/shared/components/ui/input"
 import { Label } from "@/shared/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/shared/components/ui/select"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/shared/components/ui/table"
 
 const cards = ref<TransportCard[]>([])
 const cardsLoading = ref(false)
-const selectedCardId = ref<string | null>(null)
-const balance = ref<TransportCardBalanceResponse | null>(null)
-const balanceLoading = ref(false)
-const balanceRefreshing = ref(false)
-const error = ref<string | null>(null)
+const balancesById = reactive<Record<number, TransportCardBalanceResponse | null>>({})
+const balanceLoadingById = reactive<Record<number, boolean>>({})
+const balanceErrorById = reactive<Record<number, string | null>>({})
+const balanceRefreshingById = reactive<Record<number, boolean>>({})
 
 const createDialogOpen = ref(false)
 const editDialogOpen = ref(false)
@@ -64,11 +48,6 @@ const form = ref<CreateTransportCardPayload>({
   cpf: "",
 })
 
-const selectedCard = computed(() => {
-  if (!selectedCardId.value) return null
-  return cards.value.find((c) => String(c.id) === selectedCardId.value) ?? null
-})
-
 function formatDateTime(iso: string): string {
   return new Date(iso).toLocaleString("pt-BR", {
     day: "2-digit",
@@ -79,16 +58,68 @@ function formatDateTime(iso: string): string {
   })
 }
 
+function clearBalanceStateForId(id: number): void {
+  delete balancesById[id]
+  delete balanceLoadingById[id]
+  delete balanceErrorById[id]
+  delete balanceRefreshingById[id]
+}
+
+function clearAllBalanceStates(): void {
+  for (const id of Object.keys(balancesById)) {
+    clearBalanceStateForId(Number(id))
+  }
+}
+
+async function loadBalanceForCard(cardId: number, forceRefresh = false): Promise<void> {
+  balanceLoadingById[cardId] = true
+  balanceErrorById[cardId] = null
+  try {
+    balancesById[cardId] = await fetchBalance(cardId, forceRefresh)
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Failed to load balance"
+    balanceErrorById[cardId] = msg
+    toast.error("Error", { description: msg })
+    balancesById[cardId] = null
+  } finally {
+    balanceLoadingById[cardId] = false
+  }
+}
+
+async function loadBalancesForAllCards(): Promise<void> {
+  const results = await Promise.allSettled(cards.value.map((c) => loadBalanceForCard(c.id)))
+  const failed = results.filter((r) => r.status === "rejected")
+  if (failed.length > 0 && failed.length === results.length) {
+    toast.error("Error", {
+      description: "Failed to load balances for all cards.",
+    })
+  }
+}
+
+async function handleRefreshForCard(cardId: number): Promise<void> {
+  balanceRefreshingById[cardId] = true
+  balanceErrorById[cardId] = null
+  try {
+    balancesById[cardId] = await refreshBalance(cardId)
+    toast.success("Balance updated", {
+      description: "Your transport card balance has been refreshed.",
+    })
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Failed to refresh balance"
+    balanceErrorById[cardId] = msg
+    toast.error("Error", { description: msg })
+  } finally {
+    balanceRefreshingById[cardId] = false
+  }
+}
+
 async function loadCards(): Promise<void> {
   cardsLoading.value = true
+  clearAllBalanceStates()
   try {
     cards.value = await fetchTransportCards()
-    const first = cards.value[0]
-    if (first && !selectedCardId.value) {
-      selectedCardId.value = String(first.id)
-    }
-    if (cards.value.length === 0) {
-      selectedCardId.value = null
+    if (cards.value.length > 0) {
+      await loadBalancesForAllCards()
     }
   } catch (e) {
     toast.error("Error", {
@@ -98,50 +129,6 @@ async function loadCards(): Promise<void> {
     cardsLoading.value = false
   }
 }
-
-async function loadBalance(forceRefresh = false): Promise<void> {
-  const id = selectedCardId.value
-  if (!id) {
-    balance.value = null
-    return
-  }
-  balanceLoading.value = true
-  error.value = null
-  try {
-    balance.value = await fetchBalance(Number(id), forceRefresh)
-  } catch (e) {
-    error.value = e instanceof Error ? e.message : "Failed to load balance"
-    toast.error("Error", { description: error.value })
-    balance.value = null
-  } finally {
-    balanceLoading.value = false
-  }
-}
-
-async function handleRefresh(): Promise<void> {
-  if (!selectedCardId.value) return
-  balanceRefreshing.value = true
-  error.value = null
-  try {
-    balance.value = await refreshBalance(Number(selectedCardId.value))
-    toast.success("Balance updated", {
-      description: "Your transport card balance has been refreshed.",
-    })
-  } catch (e) {
-    error.value = e instanceof Error ? e.message : "Failed to refresh balance"
-    toast.error("Error", { description: error.value })
-  } finally {
-    balanceRefreshing.value = false
-  }
-}
-
-watch(selectedCardId, (id) => {
-  if (id) {
-    void loadBalance()
-  } else {
-    balance.value = null
-  }
-})
 
 function resetForm(): void {
   form.value = {
@@ -244,12 +231,10 @@ async function handleDelete(): Promise<void> {
   formLoading.value = true
   try {
     await deleteTransportCard(card.id)
+    clearBalanceStateForId(card.id)
     toast.success("Card deleted", { description: "Transport card has been removed." })
     deleteDialogOpen.value = false
     resetForm()
-    if (selectedCardId.value === String(card.id)) {
-      selectedCardId.value = null
-    }
     await loadCards()
   } catch (e) {
     toast.error("Error", {
@@ -278,116 +263,92 @@ onMounted(() => {
     <section>
       <h2 class="mb-3 text-lg font-medium">Cards</h2>
       <div
-        class="bg-card w-full overflow-hidden rounded-xl border shadow-sm"
-        data-testid="transport-cards-table"
+        v-if="cardsLoading"
+        class="rounded-xl border bg-card p-8 text-center text-muted-foreground"
+        data-testid="transport-cards-loading"
       >
-        <Table>
-          <TableHeader class="bg-card">
-            <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Card number</TableHead>
-              <TableHead>Username</TableHead>
-              <TableHead class="w-[140px]">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            <TableRow v-if="cardsLoading">
-              <TableCell colspan="4" class="py-8 text-center text-muted-foreground">
-                Loading…
-              </TableCell>
-            </TableRow>
-            <TableRow v-else-if="cards.length === 0">
-              <TableCell colspan="4" class="py-8 text-center text-muted-foreground">
-                No transport cards yet. Add one to get started.
-              </TableCell>
-            </TableRow>
-            <TableRow v-for="card in cards" :key="card.id">
-              <TableCell class="font-medium">{{ card.name }}</TableCell>
-              <TableCell>{{ card.card_number }}</TableCell>
-              <TableCell class="text-muted-foreground">{{ card.username }}</TableCell>
-              <TableCell>
-                <div class="flex gap-2">
-                  <Button variant="outline" size="sm" @click="openEditDialog(card)">
-                    <Pencil class="size-4" aria-hidden="true" />
-                  </Button>
-                  <Button variant="outline" size="sm" @click="openDeleteDialog(card)">
-                    <Trash2 class="size-4 text-destructive" aria-hidden="true" />
-                  </Button>
-                </div>
-              </TableCell>
-            </TableRow>
-          </TableBody>
-        </Table>
+        Loading…
       </div>
-    </section>
-
-    <section v-if="cards.length > 0">
-      <h2 class="mb-3 text-lg font-medium">Balance</h2>
-      <div class="flex flex-wrap items-end gap-4">
-        <div class="min-w-[200px] space-y-2">
-          <Label for="card-select">Select card</Label>
-          <Select v-model="selectedCardId">
-            <SelectTrigger id="card-select" class="w-full">
-              <SelectValue placeholder="Choose a card" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem v-for="card in cards" :key="card.id" :value="String(card.id)">
-                {{ card.name }} ({{ card.card_number }})
-              </SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-
-      <p v-if="error" class="mt-2 text-sm text-destructive">
-        {{ error }}
-      </p>
-
-      <Card
-        v-if="balance && selectedCard"
-        class="mt-4 h-fit border-l-4 border-l-primary"
-        data-testid="transport-card-balance"
-      >
-        <CardHeader class="pb-2">
-          <CardTitle class="flex items-center gap-2 text-base font-medium">
-            <CreditCard class="size-4 shrink-0 text-primary" aria-hidden="true" />
-            {{ selectedCard.name }}
-            <span
-              v-if="balance.from_cache"
-              class="rounded bg-muted px-2 py-0.5 text-xs font-normal text-muted-foreground"
-            >
-              Cached
-            </span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent class="space-y-4 pt-0">
-          <div class="rounded-lg bg-primary/5 px-4 py-3">
-            <p class="text-3xl font-bold tabular-nums">
-              {{ formatMoneyFromNumber(balance.balance) }}
-            </p>
-          </div>
-          <div class="space-y-1 text-sm text-muted-foreground">
-            <p>Holder: {{ balance.owner_name ?? "—" }}</p>
-            <p>Card: {{ balance.card_number || "—" }}</p>
-          </div>
-          <p class="text-sm text-muted-foreground">
-            Last updated: {{ formatDateTime(balance.updated_at) }}
-          </p>
-          <Button :disabled="balanceRefreshing || balanceLoading" @click="handleRefresh">
-            <RefreshCw
-              :class="['size-4 shrink-0', balanceRefreshing && 'animate-spin']"
-              aria-hidden="true"
-            />
-            {{ balanceRefreshing ? "Updating..." : "Update balance" }}
-          </Button>
-        </CardContent>
-      </Card>
-
       <div
-        v-else-if="balanceLoading"
-        class="mt-4 rounded-lg border p-8 text-center text-muted-foreground"
+        v-else-if="cards.length === 0"
+        class="rounded-xl border bg-card p-8 text-center text-muted-foreground"
+        data-testid="transport-cards-empty"
       >
-        Loading balance...
+        No transport cards yet. Add one to get started.
+      </div>
+      <div
+        v-else
+        class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
+        data-testid="transport-cards-grid"
+      >
+        <Card
+          v-for="card in cards"
+          :key="card.id"
+          class="h-fit border-l-4 border-l-primary"
+          data-testid="transport-card-balance"
+        >
+          <CardHeader class="pb-2">
+            <CardTitle class="flex items-center justify-between gap-2 text-base font-medium">
+              <span class="flex items-center gap-2">
+                <CreditCard class="size-4 shrink-0 text-primary" aria-hidden="true" />
+                {{ card.name }}
+              </span>
+              <span
+                v-if="balancesById[card.id]?.from_cache"
+                class="rounded bg-muted px-2 py-0.5 text-xs font-normal text-muted-foreground"
+              >
+                Cached
+              </span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent class="space-y-4 pt-0">
+            <div class="space-y-1 text-sm text-muted-foreground">
+              <p>Card: {{ card.card_number }}</p>
+              <p>Username: {{ card.username }}</p>
+            </div>
+            <div v-if="balanceLoadingById[card.id]" class="rounded-lg bg-muted/50 px-4 py-3">
+              <p class="text-muted-foreground">Loading balance…</p>
+            </div>
+            <div
+              v-else-if="balanceErrorById[card.id]"
+              class="rounded-lg border border-destructive/50 bg-destructive/5 px-4 py-3"
+            >
+              <p class="text-sm text-destructive">{{ balanceErrorById[card.id] }}</p>
+            </div>
+            <div v-else-if="balancesById[card.id]" class="rounded-lg bg-primary/5 px-4 py-3">
+              <p class="text-3xl font-bold tabular-nums">
+                {{ formatMoneyFromNumber(balancesById[card.id]!.balance) }}
+              </p>
+              <p class="mt-1 text-sm text-muted-foreground">
+                Holder: {{ balancesById[card.id]!.owner_name ?? "—" }}
+              </p>
+            </div>
+            <template v-if="balancesById[card.id]">
+              <p class="text-sm text-muted-foreground">
+                Last updated: {{ formatDateTime(balancesById[card.id]!.updated_at) }}
+              </p>
+            </template>
+            <div class="flex flex-wrap gap-2">
+              <Button
+                :disabled="balanceRefreshingById[card.id] || balanceLoadingById[card.id]"
+                size="sm"
+                @click="handleRefreshForCard(card.id)"
+              >
+                <RefreshCw
+                  :class="['size-4 shrink-0', balanceRefreshingById[card.id] && 'animate-spin']"
+                  aria-hidden="true"
+                />
+                {{ balanceRefreshingById[card.id] ? "Updating…" : "Update balance" }}
+              </Button>
+              <Button variant="outline" size="sm" @click="openEditDialog(card)">
+                <Pencil class="size-4" aria-hidden="true" />
+              </Button>
+              <Button variant="outline" size="sm" @click="openDeleteDialog(card)">
+                <Trash2 class="size-4 text-destructive" aria-hidden="true" />
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </section>
 
