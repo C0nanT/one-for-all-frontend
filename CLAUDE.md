@@ -72,6 +72,17 @@ src/
 
 **Auth token**: stored in `localStorage` under the key `auth_token`. The request interceptor adds it as `Authorization: Bearer <token>` on every request.
 
+## Module Context Files
+
+Each module has its own `CLAUDE.md` with domain-specific context: API functions, composables, state, and common pitfalls. **Before working on any module, read its CLAUDE.md first.**
+
+```
+src/modules/auth/CLAUDE.md
+src/modules/dashboard/CLAUDE.md
+src/modules/accounts-payable/CLAUDE.md
+src/modules/transport-card/CLAUDE.md
+```
+
 ## Conventions
 
 - Components live in each module's `view/` or `view/components/` directory.
