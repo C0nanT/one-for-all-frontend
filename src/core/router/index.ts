@@ -31,6 +31,11 @@ const router = createRouter({
           name: "AccountsPayable",
           component: () => import("@/modules/accounts-payable/view/AccountsPayableView.vue"),
         },
+        {
+          path: "transport-card",
+          name: "TransportCard",
+          component: () => import("@/modules/transport-card/view/TransportCardView.vue"),
+        },
       ],
     },
   ],
