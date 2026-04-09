@@ -80,3 +80,46 @@ export async function updatePayableAccountPayment(
     payer_id,
   })
 }
+
+export interface PayableAccountNote {
+  id: number
+  payable_account_id: number
+  account_name: string
+  user_id: number
+  user_name: string
+  text: string
+  amount: number
+  date: string
+}
+
+export interface NotePayload {
+  payable_account_id: number
+  user_id: number
+  text: string
+  amount: number
+  date: string
+}
+
+export async function fetchNotes(period: string): Promise<PayableAccountNote[]> {
+  const res = (await api.get("payable-account-notes", { params: { period } })) as {
+    data: PayableAccountNote[]
+  }
+  return res.data
+}
+
+export async function createNote(data: NotePayload): Promise<PayableAccountNote> {
+  const res = (await api.post("payable-account-notes", data)) as { data: PayableAccountNote }
+  return res.data
+}
+
+export async function updateNote(
+  id: number,
+  data: Partial<NotePayload>,
+): Promise<PayableAccountNote> {
+  const res = (await api.put(`payable-account-notes/${id}`, data)) as { data: PayableAccountNote }
+  return res.data
+}
+
+export async function deleteNote(id: number): Promise<void> {
+  await api.delete(`payable-account-notes/${id}`)
+}

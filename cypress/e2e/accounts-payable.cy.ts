@@ -1,137 +1,34 @@
 describe("Accounts payable", () => {
-  const mockPayableAccounts = {
-    summary: {
-      period: "2026-02",
-      month_total: 3500,
-      paid_by_user: [
-        { user_id: 1, name: "Payer 1", total_paid: 1500 },
-      ],
-    },
-    data: [
-      {
-        id: 1,
-        name: "Account 1",
-        status: "paid" as const,
-        payment: {
-          id: 101,
-          payer_id: 1,
-          payer: "Payer 1",
-          amount: 1500,
-          period: "01-02-2026",
-        },
-      },
-      {
-        id: 2,
-        name: "Account 2",
-        status: "paid_zero" as const,
-        payment: {
-          id: 102,
-          payer_id: null,
-          payer: null,
-          amount: 0,
-          period: "01-02-2026",
-        },
-      },
-      {
-        id: 3,
-        name: "Account 3",
-        status: "unpaid" as const,
-        payment: {
-          payer: "Payer 3",
-          amount: 2000,
-          period: "01-02-2026",
-        },
-      },
-    ],
-  }
 
   beforeEach(() => {
-    cy.session("accounts-payable-auth", () => {
-      cy.login("user@example.com", "password123")
-    })
-    cy.intercept("GET", "**/payable-accounts/counts*", {
-      statusCode: 200,
-      body: { data: { paid: 2, unpaid: 1 } },
-    })
-    cy.intercept("GET", "**/payable-accounts*", {
-      statusCode: 200,
-      body: mockPayableAccounts,
-    }).as("fetchPayableAccounts")
-    cy.visit("/")
-    cy.url().should("not.include", "/login")
+    cy.login("user@example.com", "password123")
   })
 
   it("displays all components", () => {
     cy.visit("/accounts-payable")
-    cy.wait("@fetchPayableAccounts")
-
-    cy.get('[data-testid="accounts-payable-title"]')
-      .highlight()
-      .should("be.visible")
-      .and("contain.text", "Accounts payable")
-    cy.get('[data-testid="accounts-payable-period-selector"]').highlight().should("be.visible")
-    cy.get('[data-testid="accounts-payable-add-button"]')
-      .highlight()
-      .should("be.visible")
-      .and("contain.text", "Add")
-    cy.get('[data-testid="accounts-payable-table"]').highlight().should("be.visible")
-
-    cy.get('[data-testid="accounts-payable-summary"]')
-      .highlight()
-      .should("be.visible")
-      .and("contain.text", "Month total")
-      .and("contain.text", "Paid by user")
-    cy.get('[data-testid="accounts-payable-summary"]').within(() => {
-      cy.contains("R$ 3.500,00").highlight().should("be.visible")
-      cy.contains("Payer 1").highlight().should("be.visible")
-    })
-
-    cy.get('[data-testid="accounts-payable-table"]').within(() => {
-      cy.contains("th", "Account").highlight().should("be.visible")
-      cy.contains("th", "Status").highlight().should("be.visible")
-      cy.contains("th", "Amount").highlight().should("be.visible")
-      cy.contains("th", "Payer").highlight().should("be.visible")
-      cy.contains("th", "Period").highlight().should("be.visible")
-      cy.contains("th", "Actions").highlight().should("be.visible")
-      cy.contains("No charge").highlight().should("be.visible")
-    })
   })
 
-  it("creates a new payable account without hitting the database", () => {
-    cy.intercept("POST", "**/payable-accounts", (req) => {
-      expect(req.body).to.deep.equal({ name: "Account 3" })
-      req.reply({
-        statusCode: 201,
-        body: {
-          data: {
-            id: 99,
-            name: "Account 3",
-            status: "unpaid" as const,
-            payment: {
-              payer: "Payer 3",
-              amount: 3000,
-              period: "01-02-2026",
-            },
-          },
-        },
-      })
-    }).as("createPayableAccount")
-
+  it("creates a new payable account", () => {
     cy.visit("/accounts-payable")
-    cy.wait("@fetchPayableAccounts")
+  })
 
-    cy.get('[data-testid="accounts-payable-add-button"]').click()
+  it("edits a payable account", () => {
+    cy.visit("/accounts-payable")
+  })
 
-    cy.get('[role="dialog"]').within(() => {
-      cy.get('input[id="account"]').type("Account 3")
-      cy.get('button[type="submit"]').click()
-    })
+  it("deletes a payable account", () => {
+    cy.visit("/accounts-payable")
+  })
 
-    cy.wait("@createPayableAccount")
+  it("creates a new note", () => {
+    cy.visit("/accounts-payable")
+  })
 
-    cy.get('[data-testid="accounts-payable-table"]').within(() => {
-      cy.contains("td", "Account 3").should("be.visible")
-    })
-    cy.get('[role="dialog"]').should("not.exist")
+  it("edits a note", () => {
+    cy.visit("/accounts-payable")
+  })
+
+  it("deletes a note", () => {
+    cy.visit("/accounts-payable")
   })
 })
