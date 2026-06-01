@@ -3,6 +3,7 @@ import { api } from "@/core/api/client"
 export interface TransportCard {
   id: number
   name: string
+  description: string | null
   username: string
   card_number: string
   cpf: string
@@ -44,6 +45,7 @@ export async function refreshBalance(cardId: number): Promise<TransportCardBalan
 
 export interface CreateTransportCardPayload {
   name: string
+  description?: string
   username: string
   password: string
   card_number: string
@@ -52,6 +54,7 @@ export interface CreateTransportCardPayload {
 
 export interface UpdateTransportCardPayload {
   name?: string
+  description?: string
   username?: string
   password?: string
   card_number?: string

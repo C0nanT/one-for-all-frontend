@@ -42,6 +42,7 @@ const cardToDelete = ref<TransportCard | null>(null)
 
 const form = ref<CreateTransportCardPayload>({
   name: "",
+  description: "",
   username: "",
   password: "",
   card_number: "",
@@ -133,6 +134,7 @@ async function loadCards(): Promise<void> {
 function resetForm(): void {
   form.value = {
     name: "",
+    description: "",
     username: "",
     password: "",
     card_number: "",
@@ -151,6 +153,7 @@ function openEditDialog(card: TransportCard): void {
   cardToEdit.value = card
   form.value = {
     name: card.name,
+    description: card.description ?? "",
     username: card.username,
     password: "",
     card_number: card.card_number,
@@ -196,12 +199,14 @@ async function handleUpdate(): Promise<void> {
   if (!card) return
   const payload: {
     name?: string
+    description?: string
     username?: string
     password?: string
     card_number?: string
     cpf?: string
   } = {
     name: form.value.name,
+    description: form.value.description,
     username: form.value.username,
     card_number: form.value.card_number,
     cpf: form.value.cpf,
@@ -303,6 +308,7 @@ onMounted(() => {
           </CardHeader>
           <CardContent class="space-y-4 pt-0">
             <div class="space-y-1 text-sm text-muted-foreground">
+              <p v-if="card.description" class="text-foreground/80">{{ card.description }}</p>
               <p>Card: {{ card.card_number }}</p>
               <p>Username: {{ card.username }}</p>
             </div>
@@ -363,6 +369,18 @@ onMounted(() => {
             <Input id="create-name" v-model="form.name" placeholder="e.g. Work card" />
           </div>
           <div class="grid gap-2">
+            <Label for="create-description"
+              >Description <span class="text-muted-foreground">(optional)</span></Label
+            >
+            <textarea
+              id="create-description"
+              v-model="form.description"
+              placeholder="e.g. Daily commute card"
+              rows="2"
+              class="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none"
+            />
+          </div>
+          <div class="grid gap-2">
             <Label for="create-username">Username</Label>
             <Input id="create-username" v-model="form.username" placeholder="Tacom username" />
           </div>
@@ -401,6 +419,18 @@ onMounted(() => {
           <div class="grid gap-2">
             <Label for="edit-name">Name</Label>
             <Input id="edit-name" v-model="form.name" placeholder="e.g. Work card" />
+          </div>
+          <div class="grid gap-2">
+            <Label for="edit-description"
+              >Description <span class="text-muted-foreground">(optional)</span></Label
+            >
+            <textarea
+              id="edit-description"
+              v-model="form.description"
+              placeholder="e.g. Daily commute card"
+              rows="2"
+              class="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none"
+            />
           </div>
           <div class="grid gap-2">
             <Label for="edit-username">Username</Label>
